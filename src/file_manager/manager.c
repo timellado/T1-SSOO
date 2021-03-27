@@ -61,6 +61,19 @@ InputFile* read_file(char* filename)
   return input_file;
 }
 
+// Encuentra o crea el archvo y scribe una lina de output. 
+// Para los argumentos se debe pasar un char con todos los argumentos separados por una ","
+void line_writer(char* id, char* program_name, char* time, char* args, char* return_code, char* interrupted)
+{
+  char* file_extension = ".txt";
+  char* filename = strcat(id, file_extension);
+  FILE* output_file = fopen(filename, "w");
+
+  fprintf(output_file, "%s,%s,%s,%s,%s\n", program_name, args, time, return_code, interrupted);
+
+  fclose(output_file);
+}
+
 /*
 * Frees all the memory used by "input_file".
 */
