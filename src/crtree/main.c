@@ -3,8 +3,7 @@
 #include <string.h>
 
 #include "../file_manager/manager.h"
-
-
+#include "processes.h"
 
 int main(int argc, char **argv)
 {
@@ -27,7 +26,17 @@ int main(int argc, char **argv)
       char* identificator = input_file->lines[i][0];
       if (!strcmp(identificator, "W"))
       {
-        printf("Worker\n");
+        char id = i + '0';
+        char* pid = &id;
+        // char args_len_c = *input_file->lines[i][3];
+        // printf("%d\n", args_len_c);
+        printf("%s\n", pid);
+        Worker* current_worker = new_worker(pid, input_file->lines[i][1], "ARG_1,ARG_2,ARG_3", input_file->lines[i][2]);
+        current_worker->time = "10";
+        current_worker->return_code = "0";
+        current_worker->interrupted = "0";
+        line_writer(current_worker);
+        free(current_worker);
       }
       else if (!strcmp(identificator, "M"))
       {
@@ -37,11 +46,15 @@ int main(int argc, char **argv)
       {
         printf("Root Manager\n");
       }
-    }
+    };
 
-    // Ejemplo del line_writer
-    line_writer(start_line, "./sum", "ARG_1,ARG_2,ARG_3", "10", "0", "0");
     
-    //free memory para el input_file
+    
+    // Ejemplo del line_writer
+    // line_writer(test_worker);
+    
+    //free memory
     input_file_destroy(input_file);
+    // free(test_worker);
+
 }

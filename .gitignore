@@ -1,5 +1,13 @@
-#vscode folder
-.vscode
+# Results
+*.txt
+
+# Hidden folders
+.*
+!/.gitignore
+
+# Ignore binary crtree but not folder crtree
+crtree
+!crtree/
 
 # Prerequisites
 *.d
