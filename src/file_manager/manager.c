@@ -66,11 +66,13 @@ InputFile* read_file(char* filename)
 void line_writer(Worker* worker)
 {
   char* filename = calloc(20, sizeof(char));
-  char* file_extension = ".txt";
-  strcpy(filename, "results/");
-  strcat(filename, worker->pid);
-  strcat(filename, file_extension);
+  sprintf(filename, "%d.txt", *worker->pid);
+  // printf("%s\n", filename);
   FILE* output_file = fopen(filename, "w");
+  // TODO: Definir cuando se ejecute el proceso
+  worker->time = "10";
+  worker->return_code = "0";
+  worker->interrupted = "0";
 
   fprintf(output_file, "%s,%s,%s,%s,%s\n", worker->executable, worker->args, worker->time, worker->return_code, worker->interrupted);
 

@@ -1,7 +1,7 @@
 #pragma once
 
 typedef struct worker {
-    char* pid;
+    int* pid;
     char* executable;
     char* args_len;
     char* args;
@@ -21,4 +21,7 @@ typedef struct root_manager {
 } RootManager;
 
 void worker_process(Worker* worker);
-Worker* new_worker(char* pid, char* executable, char* args, char* args_len);
+
+Worker* new_worker(int* pid, char* executable, char* args_len, char* args);
+
+void free_worker(Worker* worker);

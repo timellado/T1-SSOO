@@ -1,5 +1,6 @@
 # Results
 *.txt
+!test.txt
 
 # Hidden folders
 .*
