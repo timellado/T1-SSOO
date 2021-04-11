@@ -10,13 +10,14 @@
 * Splits a string "str" by a separator "sep", returns an array with The
 * resulting strings. Equivalent to Python's str.split(sep).
 */
-static char** split_by_sep(char* str, char* sep)
+static char **split_by_sep(char *str, char *sep)
 {
-  char** new_str = calloc(MAX_SPLIT, sizeof(char*));
+  char **new_str = calloc(MAX_SPLIT, sizeof(char *));
   int index = 0;
 
-  char* token = strtok(str, sep);
-  while (token != NULL) {
+  char *token = strtok(str, sep);
+  while (token != NULL)
+  {
     new_str[index] = calloc(BUFFER_SIZE, sizeof(char));
     strcpy(new_str[index++], token);
     token = strtok(NULL, sep);
@@ -36,23 +37,24 @@ static char** split_by_sep(char* str, char* sep)
 * Where "n" is the amount of data lines where each of data lines are
 * comma-separated. The file is returned as a InputFile struct.
 */
-InputFile* read_file(char* filename)
+InputFile *read_file(char *filename)
 {
   // Read the file
-  FILE* file_pointer = fopen(filename, "r");
+  FILE *file_pointer = fopen(filename, "r");
 
   // Declare a buffer and read the first line
   char buffer[BUFFER_SIZE];
   fgets(buffer, BUFFER_SIZE, file_pointer);
 
   // Define the struct and prepare its attributes
-  InputFile* input_file = malloc(sizeof(InputFile));
-  input_file->lines = calloc(atoi(buffer), sizeof(char**));
+  InputFile *input_file = malloc(sizeof(InputFile));
+  input_file->lines = calloc(atoi(buffer), sizeof(char **));
   input_file->len = atoi(buffer);
 
   // Parse each line
   int index = 0;
-  while (fgets(buffer, BUFFER_SIZE, file_pointer)) {
+  while (fgets(buffer, BUFFER_SIZE, file_pointer))
+  {
     input_file->lines[index++] = split_by_sep(buffer, ",");
   }
 
@@ -61,33 +63,42 @@ InputFile* read_file(char* filename)
   return input_file;
 }
 
-// Encuentra o crea el archvo y scribe una lina de output. 
+// Encuentra o crea el archvo y scribe una lina de output.
 // Para los argumentos se debe pasar un char con todos los argumentos separados por una ","
-void line_writer(Worker* worker)
+void line_writer(Worker *worker)
 {
-  char* filename = calloc(20, sizeof(char));
+  char *filename = calloc(20, sizeof(char));
   sprintf(filename, "%d.txt", *worker->pid);
   // printf("%s\n", filename);
-  FILE* output_file = fopen(filename, "w");
+  FILE *output_file = fopen(filename, "w");
   // TODO: Definir cuando se ejecute el proceso
   worker->time = "10";
   worker->return_code = "0";
   worker->interrupted = "0";
 
-  fprintf(output_file, "%s,%s,%s,%s,%s\n", worker->executable, worker->args, worker->time, worker->return_code, worker->interrupted);
+  if (!strcmp(worker->args, ""))
+  {
+    fprintf(output_file, "%s,%s,%s,%s\n", worker->executable, worker->time, worker->return_code, worker->interrupted);
+  }
+  else
+  {
+    fprintf(output_file, "%s,%s,%s,%s,%s\n", worker->executable, worker->args, worker->time, worker->return_code, worker->interrupted);
+  }
 
   fclose(output_file);
   free(filename);
-  }
+}
 
 /*
 * Frees all the memory used by "input_file".
 */
-void input_file_destroy(InputFile* input_file)
+void input_file_destroy(InputFile *input_file)
 {
   // Free each separated data line and its contents
-  for (int i = 0; i < input_file->len; i++) {
-    for (int j = 0; j < MAX_SPLIT; j++) {
+  for (int i = 0; i < input_file->len; i++)
+  {
+    for (int j = 0; j < MAX_SPLIT; j++)
+    {
       free(input_file->lines[i][j]);
     }
     free(input_file->lines[i]);
