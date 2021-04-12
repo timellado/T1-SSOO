@@ -68,7 +68,7 @@ InputFile *read_file(char *filename)
 void line_writer(Worker *worker)
 {
   char *filename = calloc(20, sizeof(char));
-  sprintf(filename, "%d.txt", *worker->pid);
+  sprintf(filename, "%d.txt", worker->pid);
   // printf("%s\n", filename);
   FILE *output_file = fopen(filename, "w");
   // TODO: Definir cuando se ejecute el proceso

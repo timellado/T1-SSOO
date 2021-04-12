@@ -19,8 +19,8 @@ int main(int argc, char **argv)
     printf("Modo de uso: ./crtree <ruta_archivo> <inicio_programa>\n");
     return 0;
   }
-  Worker **workers = malloc(sizeof(Worker *) * input_file->len);
-  Manager **managers = malloc(sizeof(Manager *) * input_file->len);
+  Worker **workers = malloc(sizeof(Worker *) * (input_file->len + 1));
+  Manager **managers = malloc(sizeof(Manager *) * (input_file->len + 1));
   Manager *root;
   int start_line_int = *start_line - '0';
   // for para ir iterando sobre las lineas del input
@@ -28,7 +28,6 @@ int main(int argc, char **argv)
   // retorna 0 cuando los strings son iguales
   for (int i = start_line_int; i < input_file->len; i++)
   {
-    int *pid = &i;
     char *identificator = input_file->lines[i][0];
     if (!strcmp(identificator, "W"))
     {
@@ -48,7 +47,7 @@ int main(int argc, char **argv)
       }
       args[strlen(args) - 1] = '\0'; // eliminar el \n o la coma en caso que no tenga \n
       // printf("ARGS: %s\n", args);
-      Worker *current_worker = new_worker(pid, input_file->lines[i][1], input_file->lines[i][2], args);
+      Worker *current_worker = new_worker(i, input_file->lines[i][1], input_file->lines[i][2], args);
       line_writer(current_worker);
       workers[i] = current_worker;
       // free(current_worker);
@@ -61,8 +60,7 @@ int main(int argc, char **argv)
       {
         strcat(children, input_file->lines[i][j + 3]);
       }
-      printf("CHILDS %s", children);
-      Manager *current_manager = new_manager(pid, input_file->lines[i][1], input_file->lines[i][2], children);
+      Manager *current_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
       managers[i] = current_manager;
     }
     else
@@ -73,14 +71,12 @@ int main(int argc, char **argv)
       {
         strcat(children, input_file->lines[i][j + 3]);
       }
-      printf("CHILDS %s", children);
-      Manager *root_manager = new_manager(pid, input_file->lines[i][1], input_file->lines[i][2], children);
+      Manager *root_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
       root = root_manager;
     }
   };
-  
 
-  // start_processes(root, managers, workers);
+  start_processes(root, managers, workers);
 
   //free memory
 
@@ -94,12 +90,6 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(identificator, "M"))
     {
-      printf("NRO CHILDS: %d\n", managers[i]->children_len);
-      for (size_t j = 0; j < managers[i]->children_len; j++)
-      {
-        printf("CHECKING CHILDS IDS: %d\n", managers[i]->children_ids[j]);
-      }
-      
       free_manager(managers[i]);
     }
   }
