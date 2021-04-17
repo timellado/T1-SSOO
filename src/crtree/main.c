@@ -19,8 +19,8 @@ int main(int argc, char **argv)
     printf("Modo de uso: ./crtree <ruta_archivo> <inicio_programa>\n");
     return 0;
   }
-  Worker **workers = malloc(sizeof(Worker *) * (input_file->len + 1));
-  Manager **managers = malloc(sizeof(Manager *) * (input_file->len + 1));
+  Worker **workers = calloc((input_file->len + 1), sizeof(Worker *));
+  Manager **managers = calloc((input_file->len + 1), sizeof(Manager *));
   Manager *root;
   int start_line_int = *start_line - '0';
   // for para ir iterando sobre las lineas del input

@@ -6,9 +6,9 @@ typedef struct worker
     char *executable;
     char *args_len;
     char *args;
-    char *return_code;
+    int return_code;
     char *interrupted;
-    char *time;
+    int time;
 } Worker;
 
 typedef struct manager
