@@ -33,23 +33,22 @@ int main(int argc, char **argv)
     {
       printf("Worker\n");
 
-      //armar el character de los args
-      char args[200] = "";
-      for (int j = 0; j < atoi(input_file->lines[i][2]); j++)
+      //armar los args
+      int args_len = atoi(input_file->lines[i][2]);
+      
+      char **args = calloc(args_len + 2, sizeof(char*));
+      args[0] = input_file->lines[i][1];
+      for (int j = 1; j <= args_len; j++)
       {
-        if (strchr(input_file->lines[i][j + 3], '\n') != NULL)
-        {
-          strcat(args, input_file->lines[i][j + 3]);
-          break;
-        }
-        strcat(args, input_file->lines[i][j + 3]);
-        strcat(args, ",");
+        args[j] = input_file->lines[i][j + 2];
       }
-      args[strlen(args) - 1] = '\0'; // eliminar el \n o la coma en caso que no tenga \n
-      // printf("ARGS: %s\n", args);
+      args[args_len + 1] = NULL;
       Worker *current_worker = new_worker(i, input_file->lines[i][1], input_file->lines[i][2], args);
       line_writer(current_worker);
       workers[i] = current_worker;
+
+
+      
       // free(current_worker);
     }
     else if (!strcmp(identificator, "M"))

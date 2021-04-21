@@ -1,11 +1,12 @@
 #pragma once
-
+#include <sys/types.h>
 typedef struct worker
 {
-    int pid;
+    int id;
+    pid_t pid;
     char *executable;
     char *args_len;
-    char *args;
+    char **args;
     int return_code;
     char *interrupted;
     int time;
@@ -21,7 +22,7 @@ typedef struct manager
 
 void worker_process(Worker *worker, Manager **managers, Worker **workers);
 
-Worker *new_worker(int pid, char *executable, char *args_len, char *args);
+Worker *new_worker(int id, char *executable, char *args_len, char **args);
 
 void free_worker(Worker *worker);
 

@@ -17,7 +17,7 @@ int main(int argc, char **argv){
     float total_d = (float) total;
     float nro_args = (float) (argc - 1);
     float result = total / nro_args;
-    int time = 1;
+    int time = 5;
     sleep(time);
     printf("Resultado: %f\n", result);
     return 0;
