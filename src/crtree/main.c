@@ -19,7 +19,9 @@ int main(int argc, char **argv)
     printf("Modo de uso: ./crtree <ruta_archivo> <inicio_programa>\n");
     return 0;
   }
-  Worker **workers = malloc(sizeof(Worker *) * input_file->len);
+  Worker **workers = calloc((input_file->len + 1), sizeof(Worker *));
+  Manager **managers = calloc((input_file->len + 1), sizeof(Manager *));
+  Manager *root;
   int start_line_int = *start_line - '0';
   // for para ir iterando sobre las lineas del input
   // Va con negación las condiciones, porque strcmp
@@ -30,42 +32,54 @@ int main(int argc, char **argv)
     if (!strcmp(identificator, "W"))
     {
       printf("Worker\n");
-      int id = i;
-      int *pid = &id;
-      //armar el character de los args   
-      //TODO: Preguntar por el caso que no tiene argumentos!!!!
-      int args_len_integer = *input_file->lines[i][2] - '0';
-      char args[200] = "";
-      for (int j = 3; j < args_len_integer + 3; j++)
+
+      //armar los args
+      int args_len = atoi(input_file->lines[i][2]);
+      
+      char **args = calloc(args_len + 2, sizeof(char*));
+      args[0] = input_file->lines[i][1];
+      for (int j = 1; j <= args_len; j++)
       {
-        if (strchr(input_file->lines[i][j], '\n') != NULL)
-        {
-          strcat(args, input_file->lines[i][j]);
-          break;
-        }
-        strcat(args, input_file->lines[i][j]);
-        strcat(args, ",");
+        args[j] = input_file->lines[i][j + 2];
       }
-      args[strlen(args) - 1] = '\0'; // eliminar el \n o la coma en caso que no tenga \n
-      // printf("ARGS: %s\n", args);
-      Worker *current_worker = new_worker(pid, input_file->lines[i][1], input_file->lines[i][2], args);
+      args[args_len + 1] = NULL;
+      Worker *current_worker = new_worker(i, input_file->lines[i][1], input_file->lines[i][2], args);
       line_writer(current_worker);
       workers[i] = current_worker;
+
+
+      
       // free(current_worker);
     }
     else if (!strcmp(identificator, "M"))
     {
       printf("Manager\n");
+      char children[200] = "";
+      for (int j = 0; j < atoi(input_file->lines[i][2]); j++)
+      {
+        strcat(children, input_file->lines[i][j + 3]);
+      }
+      Manager *current_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
+      managers[i] = current_manager;
     }
     else
     {
       printf("Root Manager\n");
+      char children[200] = "";
+      for (int j = 0; j < atoi(input_file->lines[i][2]); j++)
+      {
+        strcat(children, input_file->lines[i][j + 3]);
+      }
+      Manager *root_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
+      root = root_manager;
     }
   };
 
+  start_processes(root, managers, workers);
+
   //free memory
 
-    for (int i = start_line_int; i < input_file->len; i++)
+  for (int i = start_line_int; i < input_file->len; i++)
   {
     char *identificator = input_file->lines[i][0];
     if (!strcmp(identificator, "W"))
@@ -73,9 +87,15 @@ int main(int argc, char **argv)
       // printf("Just checking worker id: %d\n", *workers[i]->pid);
       free_worker(workers[i]);
     }
+    else if (!strcmp(identificator, "M"))
+    {
+      free_manager(managers[i]);
+    }
   }
 
+  free_manager(root);
   free(workers);
+  free(managers);
 
   input_file_destroy(input_file);
   // free(test_worker);

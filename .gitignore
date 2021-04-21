@@ -2,6 +2,11 @@
 *.txt
 !test.txt
 
+# Bins de ejecutables
+avg
+sum
+hello_world
+
 # Hidden folders
 .*
 !/.gitignore
