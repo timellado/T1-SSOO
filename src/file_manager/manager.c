@@ -2,7 +2,7 @@
 #include <stdio.h>  // FILE, fopen, fclose, etc.
 #include <string.h> // strtok, strcpy, etc.
 #include <stdlib.h> // malloc, calloc, free, etc.
-
+#include <string.h>
 // Import the header file of this module
 #include "manager.h"
 
@@ -63,30 +63,59 @@ InputFile *read_file(char *filename)
   return input_file;
 }
 
-// Encuentra o crea el archvo y scribe una lina de output.
+// Encuentra o crea el archvo y escribe una lina de output.
 // Para los argumentos se debe pasar un char con todos los argumentos separados por una ","
 void line_writer(Worker *worker)
 {
   char *filename = calloc(20, sizeof(char));
-  sprintf(filename, "%d.txt", worker->pid);
+  sprintf(filename, "%d.txt", worker->id);
   // printf("%s\n", filename);
   FILE *output_file = fopen(filename, "w");
   // TODO: Definir cuando se ejecute el proceso
-  worker->time = "10";
-  worker->return_code = "0";
-  worker->interrupted = "0";
 
-  if (!strcmp(worker->args, ""))
+  if (worker->args_len == 0)
   {
-    fprintf(output_file, "%s,%s,%s,%s\n", worker->executable, worker->time, worker->return_code, worker->interrupted);
+    fprintf(output_file, "%s,%d,%d,%d\n", worker->executable, worker->time, worker->return_code, worker->interrupted);
   }
   else
   {
-    fprintf(output_file, "%s,%s,%s,%s,%s\n", worker->executable, worker->args, worker->time, worker->return_code, worker->interrupted);
+    char str[200];
+    strcpy(str, "");
+    for (int i = 0; i < worker->args_len; i++)
+    {
+      strcat(str, worker->args[i + 1]);
+      strcat(str, ",");
+    }
+    str[worker->args_len*2-1] = '\0'; //quita el \n y la última coma
+    fprintf(output_file, "%s,%s,%d,%d,%d\n", worker->executable, str, worker->time, worker->return_code, worker->interrupted);
   }
 
   fclose(output_file);
   free(filename);
+}
+
+void manager_file_writer_manager(char* manager_child_filename, char* manager_parent_filename)
+{
+  FILE *child_file = fopen(manager_child_filename, "r");
+  FILE *manager_output_file = fopen(manager_parent_filename, "a");
+  char buffer[BUFFER_SIZE];
+  while (fgets(buffer, BUFFER_SIZE, child_file))
+  {
+    fprintf(manager_output_file, "%s", buffer);
+  }
+  fclose(manager_output_file);
+  fclose(child_file);
+}
+
+void manager_file_writer_worker(char* worker_filename, char* manager_filename)
+{
+  FILE *child_file = fopen(worker_filename, "r");
+  FILE *manager_output_file = fopen(manager_filename, "a");
+  char buffer[BUFFER_SIZE];
+  fgets(buffer, BUFFER_SIZE, child_file);
+  fprintf(manager_output_file, "%s", buffer);
+  fclose(manager_output_file);
+  fclose(child_file);
 }
 
 /*

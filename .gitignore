@@ -7,6 +7,9 @@ avg
 sum
 hello_world
 
+avg.c
+sum.c
+hello_world.c
 # Hidden folders
 .*
 !/.gitignore

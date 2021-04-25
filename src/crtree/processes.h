@@ -5,37 +5,39 @@ typedef struct worker
     int id;
     pid_t pid;
     char *executable;
-    char *args_len;
+    int args_len;
     char **args;
     int return_code;
-    char *interrupted;
+    int interrupted;
     int time;
 } Worker;
 
 typedef struct manager
 {
-    int pid;
+    int id;
+    pid_t pid;
     int timeout;
     int children_len;
     int children_ids[];
 } Manager;
 
-void worker_process(Worker *worker, Manager **managers, Worker **workers);
 
-Worker *new_worker(int id, char *executable, char *args_len, char **args);
+Worker *new_worker(int id, char *executable, int args_len, char **args);
+
+void worker_process(Worker *worker);
 
 void free_worker(Worker *worker);
 
-void manager_process(Manager *manager, Manager **managers, Worker **workers);
+Manager *new_manager(int id, char *timeout, char *children_len, char *children);
 
-Manager *new_manager(int pid, char *timeout, char *children_len, char *children);
+void manager_process(Manager *manager, Manager **managers, Worker **workers);
 
 void free_manager(Manager *manager);
 
+void root_process(Manager *root, Manager **managers, Worker **workers); 
+
 void start_processes(Manager *root, Manager **managers, Worker **workers);
 
-void sig_handler_manager_parent(int signum);
-
-void sig_handler_manager_child(int signum);
+void sig_SIGABRT_handler_manager(int signum);
 
 void sig_handler_worker(int signum);

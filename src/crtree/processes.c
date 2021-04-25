@@ -8,34 +8,55 @@
 #include <signal.h>
 #include <time.h>
 #include <errno.h>
+#include "../file_manager/manager.h"
 
-void sig_handler_manager_parent(int signum)
-{
-    printf("[MANAGER Parent: %d] : Received a response signal from CHILD\n", getppid());
-}
+int global_SIGABRT = 0;
+int child_count = 0;
+int childs_pids[];
 
-void sig_handler_manager_child(int signum)
+void sig_SIGABRT_handler_manager(int signum)
 {
-    printf("[MANAGER Child: %d] : Received a signal from PARENT \n", getppid());
-    sleep(1);
-    kill(getppid(), SIGUSR1);
+    if (!global_SIGABRT)
+    {
+        global_SIGABRT = 1;
+        for (size_t i = 0; i < child_count; i++)
+        {
+            kill(childs_pids[i], SIGABRT);
+        }
+    }
 }
 
 void sig_handler_worker(int signum)
 {
-    printf("[WORKER: %d] : Received a signal from PARENT \n", getppid());
-    sleep(1);
-    kill(getppid(), SIGUSR1);
+    global_SIGABRT = 1;
 }
 
-void worker_process(Worker *worker, Manager **managers, Worker **workers)
+void worker_process(Worker *worker)
 {
-    printf("WORKER: ME HABRÍA EJECUTADO ID: %d\n", worker->pid);
+    int status;
+    time_t start, end;
+    int pid;
+    pid = fork();
+    time(&start);
+    if (pid == 0)
+    {
+        execvp(worker->executable, worker->args);
+    }
+    else
+    {
+        wait(&status);
+        time(&end);
+        worker->time = (int)difftime(end, start);
+        worker->return_code = WEXITSTATUS(status);
+        worker->interrupted = global_SIGABRT;
+        line_writer(worker);
+    }
+    exit(WEXITSTATUS(status));
 }
 
-Worker *new_worker(int id, char *executable, char *args_len, char **args)
+Worker *new_worker(int id, char *executable, int args_len, char **args)
 {
-    Worker *new_worker = malloc(sizeof(Worker) + (atoi(args_len) + 2) * sizeof(char*));
+    Worker *new_worker = malloc(sizeof(Worker) + (args_len + 2) * sizeof(char *));
     new_worker->id = id;
     new_worker->executable = executable;
     new_worker->args_len = args_len;
@@ -50,181 +71,182 @@ void free_worker(Worker *worker)
 
 void manager_process(Manager *manager, Manager **managers, Worker **workers)
 {
+    signal(SIGABRT, sig_SIGABRT_handler_manager);
+    signal(SIGINT, SIG_IGN);
     int status;
     pid_t pid;
-    time_t start,end;
     for (int i = 0; i < manager->children_len; i++)
     {
         pid = fork();
-        if (pid == 0) {
+        if (pid == 0)
+        {
             if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
             {
-                Manager *child_manager = managers[manager->children_ids[i]];//     
-                signal(SIGUSR1, sig_handler_manager_child);
-                sleep(child_manager->timeout); // Cambiar esta forma
-                printf("[MANAGER ID:%d PID:%d PPID:%d] IM THE CHILD MANAGER Sending a timeout signal\n", child_manager->pid, getpid(), getppid());
-                exit(EXIT_FAILURE);
-                // manager_process(child_manager, managers, workers);
+                Manager *child_manager = managers[manager->children_ids[i]];
+                manager_process(child_manager, managers, workers);
             }
             else // WORKER CHILD
-            {   
+            {
                 Worker *child_worker = workers[manager->children_ids[i]];
-                child_worker->interrupted = "0";
-
-                child_worker->pid = getpid();
-                                
-                time (&start);
-                signal(SIGUSR1, sig_handler_worker);
-                printf("[WORKER ID:%d PID:%d PPID:%d] IM THE WORKER CHILD\n", child_worker->id, getpid(), getppid());
-                // sleep(3);
-
-                execvp(child_worker->executable, child_worker->args);
-                exit(EXIT_FAILURE);
-
+                worker_process(child_worker);
+            }
+        }
+        else
+        {
+            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
+            {
+                Manager *child_manager = managers[manager->children_ids[i]];
+                child_manager->pid = pid;
+            }
+            else // WORKER CHILD
+            {
+                Worker *child_worker = workers[manager->children_ids[i]];
+                child_worker->pid = pid;
             }
         }
     }
-    // printf("MAN_PROC: FIRST CHILD ID: %d\n", manager->children_ids[i]);
     if (pid > 0)
     {
+        for (size_t i = 0; i < manager->children_len; i++)
+        {
+            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
+            {
+                Manager *child_manager = managers[manager->children_ids[i]];
+                childs_pids[child_count] = child_manager->pid;
+                child_count++;
+            }
+            else // WORKER CHILD
+            {
+                Worker *child_worker = workers[manager->children_ids[i]];
+                childs_pids[child_count] = child_worker->pid;
+                child_count++;
+            }
+        }
+
         int exited_children = 0;
         while (exited_children < manager->children_len)
         {
             pid_t exited_child = wait(&status);
-            time (&end);
-            Worker *child_worker;
+            printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
             for (int i = 0; i < manager->children_len; i++)
             {
                 if ((workers[manager->children_ids[i]] != NULL) && (exited_child == workers[manager->children_ids[i]]->pid))
                 {
-                    child_worker = workers[manager->children_ids[i]];
+                    Worker *child_worker = workers[manager->children_ids[i]];
+                    char *manager_filename = calloc(20, sizeof(char));
+                    sprintf(manager_filename, "%d.txt", manager->id);
+                    printf("IM THE MANAGER %d AND MY FILENAME IS %s\n", getpid(), manager_filename);
+                    char *child_filename = calloc(20, sizeof(char));
+                    sprintf(child_filename, "%d.txt", child_worker->id);
+                    printf("IM THE EXITED CHILD %d FROM MANAGER %d AND MY FILENAME IS %s\n", exited_child, getpid(), child_filename);
+                    manager_file_writer_worker(child_filename, manager_filename);
+                }
+                else if ((managers[manager->children_ids[i]] != NULL) && (exited_child == managers[manager->children_ids[i]]->pid))
+                {
+                    Manager *child_manager = managers[manager->children_ids[i]];
+                    char *manager_child_filename = calloc(20, sizeof(char));
+                    sprintf(manager_child_filename, "%d.txt", child_manager->id);
+                    char *manager_parent_filename = calloc(20, sizeof(char));
+                    sprintf(manager_parent_filename, "%d.txt", manager->id);
+                    manager_file_writer_manager(manager_child_filename, manager_parent_filename);
                 }
             }
-            
-            child_worker->time = (int)difftime (end,start);
-            printf("The WORKER %d finished executing with code %d in %d seconds\n", child_worker->pid, child_worker->return_code, child_worker->time);
-            printf("Process %d exited with status %d in %d seconds\n", exited_child, WEXITSTATUS(status), child_worker->time);
             exited_children++;
-        }                
+        }
+        exit(EXIT_SUCCESS);
     }
-    //     if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
-    //     {
-    //         Manager *child_manager = managers[manager->children_ids[i]];
-    //         pid_t child_pid = fork();
-    //         if (child_pid == 0) // Manager Child
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_child);
-    //             sleep(child_manager->timeout); // Cambiar esta forma
-    //             printf("[MANAGER ID:%d PID:%d PPID:%d] IM THE CHILD MANAGER Sending a timeout signal\n", child_manager->pid, getpid(), getppid());
-    //             // exit(9);
-    //             manager_process(child_manager, managers, workers);
-    //         }
-    //         else  // Manager Parent
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_parent);
-    //             printf("[MANAGER ID:%d PID:%d] IM THE PARENT of a MANAGER\n", manager->pid, getpid());
-    //             pid_t exited_child = wait(&status);
-    //             printf("[MANAGER ID:%d PID:%d] The children MANAGER %d finished executing with code %d\n", manager->pid, getpid(), exited_child, WEXITSTATUS(status));
-    //         }
-    //     }
-    //     else // WORKER CHILD
-    //     {   
-    //         Worker *child_worker = workers[manager->children_ids[i]];
-    //         child_worker->interrupted = "0";
-    //         time_t start,end;
-    //         time (&start);
-    //         pid_t child_pid = fork();
-    //         if (child_pid == 0) //Worker
-    //         {
-    //             signal(SIGUSR1, sig_handler_worker);
-    //             printf("[WORKER ID:%d PID:%d PPID:%d] IM THE WORKER CHILD\n", child_worker->pid, getpid(), getppid());
-    //             // sleep(3);
-    //             execvp(child_worker->executable, child_worker->args);
-    //             exit(9);
-    //         }
-    //         else //Manager
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_parent);
-    //             printf("[MANAGER ID:%d PID:%d] IM THE PARENT of a WORKER\n", manager->pid, getpid());
-    //             pid_t exited_child = wait(&status);
-    //             time (&end);
-    //             sleep(2);
-    //             // printf("[MANAGER ID:%d PID:%d] The WORKER %d finished executing with code %d in %f seconds\n", manager->pid, getpid(), exited_child, WEXITSTATUS(status), child_worker->time);
-    //             child_worker->return_code = WEXITSTATUS(status);
-    //         }
-    //         double dif;
-    //         dif = difftime (end,start);
-    //         child_worker->time = (int)dif;
-    //         printf("The WORKER %d finished executing with code %d in %d seconds\n", child_worker->pid, child_worker->return_code, child_worker->time);
-    //     }
-    // }
-    
-    // for (int i = 0; i < manager->children_len; i++)
-    // {
-    //     int status;
-    //     printf("MAN_PROC: FIRST CHILD ID: %d\n", manager->children_ids[i]);
-    //     if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
-    //     {
-    //         Manager *child_manager = managers[manager->children_ids[i]];
-    //         pid_t child_pid = fork();
-    //         if (child_pid == 0) // Manager Child
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_child);
-    //             sleep(child_manager->timeout); // Cambiar esta forma
-    //             printf("[MANAGER ID:%d PID:%d PPID:%d] IM THE CHILD MANAGER Sending a timeout signal\n", child_manager->pid, getpid(), getppid());
-    //             // exit(9);
-    //             manager_process(child_manager, managers, workers);
-    //         }
-    //         else  // Manager Parent
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_parent);
-    //             printf("[MANAGER ID:%d PID:%d] IM THE PARENT of a MANAGER\n", manager->pid, getpid());
-    //             pid_t exited_child = wait(&status);
-    //             printf("[MANAGER ID:%d PID:%d] The children MANAGER %d finished executing with code %d\n", manager->pid, getpid(), exited_child, WEXITSTATUS(status));
-    //         }
-    //     }
-    //     else // WORKER CHILD
-    //     {   
-    //         Worker *child_worker = workers[manager->children_ids[i]];
-    //         child_worker->interrupted = "0";
-    //         time_t start,end;
-    //         time (&start);
-    //         pid_t child_pid = fork();
-    //         if (child_pid == 0) //Worker
-    //         {
-    //             signal(SIGUSR1, sig_handler_worker);
-    //             printf("[WORKER ID:%d PID:%d PPID:%d] IM THE WORKER CHILD\n", child_worker->pid, getpid(), getppid());
-    //             // sleep(3);
-    //             execvp(child_worker->executable, child_worker->args);
-    //             exit(9);
-    //         }
-    //         else //Manager
-    //         {
-    //             signal(SIGUSR1, sig_handler_manager_parent);
-    //             printf("[MANAGER ID:%d PID:%d] IM THE PARENT of a WORKER\n", manager->pid, getpid());
-    //             pid_t exited_child = wait(&status);
-    //             time (&end);
-    //             sleep(2);
-    //             // printf("[MANAGER ID:%d PID:%d] The WORKER %d finished executing with code %d in %f seconds\n", manager->pid, getpid(), exited_child, WEXITSTATUS(status), child_worker->time);
-    //             child_worker->return_code = WEXITSTATUS(status);
-    //         }
-    //         double dif;
-    //         dif = difftime (end,start);
-    //         child_worker->time = (int)dif;
-    //         printf("The WORKER %d finished executing with code %d in %d seconds\n", child_worker->pid, child_worker->return_code, child_worker->time);
-    //     }
-    // }
+}
+void root_process(Manager *manager, Manager **managers, Worker **workers)
+{
+    signal(SIGABRT, sig_SIGABRT_handler_manager);
+    signal(SIGINT, sig_SIGABRT_handler_manager);
+    int status;
+    pid_t pid;
+    for (int i = 0; i < manager->children_len; i++)
+    {
+        pid = fork();
+        if (pid == 0)
+        {
+            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
+            {
+                Manager *child_manager = managers[manager->children_ids[i]];
+                manager_process(child_manager, managers, workers);
+            }
+            else // WORKER CHILD
+            {
+                Worker *child_worker = workers[manager->children_ids[i]];
+                worker_process(child_worker);
+            }
+        }
+        else
+        {
+            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
+            {
+                Manager *child_manager = managers[manager->children_ids[i]];
+                child_manager->pid = pid;
+            }
+            else // WORKER CHILD
+            {
+                Worker *child_worker = workers[manager->children_ids[i]];
+                child_worker->pid = pid;
+            }
+        }
+    }
+    if (pid > 0)
+    {
+        for (size_t i = 0; i < manager->children_len; i++)
+        {
+            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
+            {
+                Manager *child_manager = managers[manager->children_ids[i]];
+                childs_pids[child_count] = child_manager->pid;
+                child_count++;
+            }
+            else // WORKER CHILD
+            {
+                Worker *child_worker = workers[manager->children_ids[i]];
+                childs_pids[child_count] = child_worker->pid;
+                child_count++;
+            }
+        }
+        int exited_children = 0;
+        while (exited_children < manager->children_len)
+        {
+            pid_t exited_child = wait(&status);
+            printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
+            for (int i = 0; i < manager->children_len; i++)
+            {
+                if ((workers[manager->children_ids[i]] != NULL) && (exited_child == workers[manager->children_ids[i]]->pid))
+                {
+                    Worker *child_worker = workers[manager->children_ids[i]];
+                    char *manager_filename = calloc(20, sizeof(char));
+                    sprintf(manager_filename, "%d.txt", manager->id);
+                    char *child_filename = calloc(20, sizeof(char));
+                    sprintf(child_filename, "%d.txt", child_worker->id);
+                    manager_file_writer_worker(child_filename, manager_filename);
+                }
+                else if ((managers[manager->children_ids[i]] != NULL) && (exited_child == managers[manager->children_ids[i]]->pid))
+                {
+                    Manager *child_manager = managers[manager->children_ids[i]];
+                    char *manager_child_filename = calloc(20, sizeof(char));
+                    sprintf(manager_child_filename, "%d.txt", child_manager->id);
+                    char *manager_parent_filename = calloc(20, sizeof(char));
+                    sprintf(manager_parent_filename, "%d.txt", manager->id);
+                    manager_file_writer_manager(manager_child_filename, manager_parent_filename);
+                }
+            }
+            exited_children++;
+        }
+    }
 }
 
-Manager *new_manager(int pid, char *timeout, char *children_len, char *children)
+Manager *new_manager(int id, char *timeout, char *children_len, char *children)
 {
     int children_len_int = atoi(children_len);
     int timeout_int = atoi(timeout);
-    int pid_int = pid;
-
     Manager *manager = malloc(sizeof(Manager) + children_len_int * sizeof(int));
 
-    manager->pid = pid_int;
+    manager->id = id;
     manager->timeout = timeout_int;
     manager->children_len = children_len_int;
 
@@ -244,6 +266,5 @@ void free_manager(Manager *manager)
 
 void start_processes(Manager *root, Manager **managers, Worker **workers)
 {
-    manager_process(root, managers, workers);
-    exit(0);
+    root_process(root, managers, workers);
 }

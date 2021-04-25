@@ -43,8 +43,7 @@ int main(int argc, char **argv)
         args[j] = input_file->lines[i][j + 2];
       }
       args[args_len + 1] = NULL;
-      Worker *current_worker = new_worker(i, input_file->lines[i][1], input_file->lines[i][2], args);
-      line_writer(current_worker);
+      Worker *current_worker = new_worker(i, input_file->lines[i][1], args_len, args);
       workers[i] = current_worker;
 
 
@@ -98,5 +97,5 @@ int main(int argc, char **argv)
   free(managers);
 
   input_file_destroy(input_file);
-  // free(test_worker);
+  exit(EXIT_SUCCESS);
 }
