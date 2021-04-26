@@ -82,11 +82,13 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
             if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
             {
                 Manager *child_manager = managers[manager->children_ids[i]];
+                // printf("STARTING MANAGER [%d] WITH ID: %d\n", getpid(), child_manager->id);
                 manager_process(child_manager, managers, workers, total_processes);
             }
             else if (workers[manager->children_ids[i]] != NULL) // WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
+                // printf("STARTING WORKER [%d] WITH ID: %d\n", getpid(), child_worker->id);
                 worker_process(child_worker, managers, workers, total_processes);
             }
         }
@@ -126,7 +128,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
         while (exited_children < child_count)
         {
             pid_t exited_child = wait(&status);
-            printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
+            // printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
             for (int i = 0; i < manager->children_len; i++)
             {
                 if ((workers[manager->children_ids[i]] != NULL) && (exited_child == workers[manager->children_ids[i]]->pid))
@@ -134,10 +136,10 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                     Worker *child_worker = workers[manager->children_ids[i]];
                     char *manager_filename = calloc(20, sizeof(char));
                     sprintf(manager_filename, "%d.txt", manager->id);
-                    printf("IM THE MANAGER %d AND MY FILENAME IS %s\n", getpid(), manager_filename);
+                    // printf("IM THE MANAGER %d AND MY FILENAME IS %s\n", getpid(), manager_filename);
                     char *child_filename = calloc(20, sizeof(char));
                     sprintf(child_filename, "%d.txt", child_worker->id);
-                    printf("IM THE EXITED CHILD %d FROM MANAGER %d AND MY FILENAME IS %s\n", exited_child, getpid(), child_filename);
+                    // printf("IM THE EXITED CHILD %d FROM MANAGER %d AND MY FILENAME IS %s\n", exited_child, getpid(), child_filename);
                     manager_file_writer_worker(child_filename, manager_filename);
                     free(manager_filename);
                     free(child_filename);
@@ -174,10 +176,10 @@ void root_process(Manager *root, Manager **managers, Worker **workers, int total
     manager_logic(root, managers, workers, total_processes);
 }
 
-Manager *new_manager(int id, char *timeout, char *children_len, char *children)
+Manager *new_manager(int id, int timeout, int children_len, int *children)
 {
-    int children_len_int = atoi(children_len);
-    int timeout_int = atoi(timeout);
+    int children_len_int = children_len;
+    int timeout_int = timeout;
     Manager *manager = malloc(sizeof(Manager) + children_len_int * sizeof(int));
 
     manager->id = id;
@@ -186,8 +188,7 @@ Manager *new_manager(int id, char *timeout, char *children_len, char *children)
 
     for (int i = 0; i < children_len_int; i++)
     {
-        int n = children[i] - '0';
-        manager->children_ids[i] = n;
+        manager->children_ids[i] = children[i];
     }
 
     return manager;

@@ -35,8 +35,8 @@ int main(int argc, char **argv)
 
       //armar los args
       int args_len = atoi(input_file->lines[i][2]);
-      
-      char **args = calloc(args_len + 2, sizeof(char*));
+
+      char **args = calloc(args_len + 2, sizeof(char *));
       args[0] = input_file->lines[i][1];
       for (int j = 1; j <= args_len; j++)
       {
@@ -49,29 +49,46 @@ int main(int argc, char **argv)
     else if (!strcmp(identificator, "M"))
     {
       printf("Manager\n");
-      char children[200] = "";
+      int children_len = atoi(input_file->lines[i][2]);
+      int children[children_len];
+      int child_count = 0;
       for (int j = 0; j < atoi(input_file->lines[i][2]); j++)
       {
-        strcat(children, input_file->lines[i][j + 3]);
+        if (atoi(input_file->lines[i][j + 3]) >= start_line_int)
+        {
+          children[child_count++] = atoi(input_file->lines[i][j + 3]);
+        }
+        else
+        {
+          children_len--;
+        }
       }
-      Manager *current_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
+      Manager *current_manager = new_manager(i, atoi(input_file->lines[i][1]), children_len, children);
       managers[i] = current_manager;
     }
     else
     {
       printf("Root Manager\n");
-      char children[200] = "";
+      int children_len = atoi(input_file->lines[i][2]);
+      int children[children_len];
+      int child_count = 0;
       for (int j = 0; j < atoi(input_file->lines[i][2]); j++)
       {
-        strcat(children, input_file->lines[i][j + 3]);
+        if (atoi(input_file->lines[i][j + 3]) >= start_line_int)
+        {
+          children[child_count++] = atoi(input_file->lines[i][j + 3]);
+        }
+        else
+        {
+          children_len--;
+        }
       }
-      Manager *root_manager = new_manager(i, input_file->lines[i][1], input_file->lines[i][2], children);
+      Manager *root_manager = new_manager(i, atoi(input_file->lines[i][1]), children_len, children);
       root = root_manager;
     }
   };
 
   start_processes(root, managers, workers, input_file->len);
-
 
   //free memory
 

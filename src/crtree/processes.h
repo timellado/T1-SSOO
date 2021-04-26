@@ -28,7 +28,7 @@ void worker_process(Worker *worker, Manager **managers, Worker **workers, int to
 
 void free_worker(Worker *worker);
 
-Manager *new_manager(int id, char *timeout, char *children_len, char *children);
+Manager *new_manager(int id, int timeout, int children_len, int *children);
 
 void manager_process(Manager *manager, Manager **managers, Worker **workers, int total_processes);
 
