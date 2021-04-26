@@ -86,7 +86,13 @@ void line_writer(Worker *worker)
       strcat(str, worker->args[i + 1]);
       strcat(str, ",");
     }
-    str[worker->args_len*2-1] = '\0'; //quita el \n y la última coma
+    if(strstr(str, "\n") != NULL) {
+      str[strlen(str) - 2] = '\0'; //quita el \n y la última coma
+    }
+    else{
+      str[strlen(str) - 1] = '\0';
+    }
+    
     fprintf(output_file, "%s,%s,%d,%d,%d\n", worker->executable, str, worker->time, worker->return_code, worker->interrupted);
   }
 

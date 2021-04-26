@@ -24,19 +24,23 @@ typedef struct manager
 
 Worker *new_worker(int id, char *executable, int args_len, char **args);
 
-void worker_process(Worker *worker);
+void worker_process(Worker *worker, Manager **managers, Worker **workers, int total_processes);
 
 void free_worker(Worker *worker);
 
 Manager *new_manager(int id, char *timeout, char *children_len, char *children);
 
-void manager_process(Manager *manager, Manager **managers, Worker **workers);
+void manager_process(Manager *manager, Manager **managers, Worker **workers, int total_processes);
+
+void manager_logic(Manager *manager, Manager **managers, Worker **workers, int total_processes);
 
 void free_manager(Manager *manager);
 
-void root_process(Manager *root, Manager **managers, Worker **workers); 
+void root_process(Manager *root, Manager **managers, Worker **workers, int total_processes); 
 
-void start_processes(Manager *root, Manager **managers, Worker **workers);
+void start_processes(Manager *root, Manager **managers, Worker **workers, int total_processes);
+
+void free_all(Manager **managers, Worker **workers, int total_processes);
 
 void sig_SIGABRT_handler_manager(int signum);
 

@@ -45,10 +45,6 @@ int main(int argc, char **argv)
       args[args_len + 1] = NULL;
       Worker *current_worker = new_worker(i, input_file->lines[i][1], args_len, args);
       workers[i] = current_worker;
-
-
-      
-      // free(current_worker);
     }
     else if (!strcmp(identificator, "M"))
     {
@@ -74,7 +70,8 @@ int main(int argc, char **argv)
     }
   };
 
-  start_processes(root, managers, workers);
+  start_processes(root, managers, workers, input_file->len);
+
 
   //free memory
 

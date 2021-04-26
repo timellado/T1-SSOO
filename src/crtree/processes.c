@@ -31,7 +31,7 @@ void sig_handler_worker(int signum)
     global_SIGABRT = 1;
 }
 
-void worker_process(Worker *worker)
+void worker_process(Worker *worker, Manager **managers, Worker **workers, int total_processes)
 {
     int status;
     time_t start, end;
@@ -66,13 +66,12 @@ Worker *new_worker(int id, char *executable, int args_len, char **args)
 
 void free_worker(Worker *worker)
 {
+    free(worker->args);
     free(worker);
 }
 
-void manager_process(Manager *manager, Manager **managers, Worker **workers)
+void manager_logic(Manager *manager, Manager **managers, Worker **workers, int total_processes)
 {
-    signal(SIGABRT, sig_SIGABRT_handler_manager);
-    signal(SIGINT, SIG_IGN);
     int status;
     pid_t pid;
     for (int i = 0; i < manager->children_len; i++)
@@ -83,12 +82,12 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
             if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
             {
                 Manager *child_manager = managers[manager->children_ids[i]];
-                manager_process(child_manager, managers, workers);
+                manager_process(child_manager, managers, workers, total_processes);
             }
-            else // WORKER CHILD
+            else if (workers[manager->children_ids[i]] != NULL) // WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
-                worker_process(child_worker);
+                worker_process(child_worker, managers, workers, total_processes);
             }
         }
         else
@@ -98,7 +97,7 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
                 Manager *child_manager = managers[manager->children_ids[i]];
                 child_manager->pid = pid;
             }
-            else // WORKER CHILD
+            else if (workers[manager->children_ids[i]] != NULL)// WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
                 child_worker->pid = pid;
@@ -115,7 +114,7 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
                 childs_pids[child_count] = child_manager->pid;
                 child_count++;
             }
-            else // WORKER CHILD
+            else if (workers[manager->children_ids[i]] != NULL)// WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
                 childs_pids[child_count] = child_worker->pid;
@@ -124,7 +123,7 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
         }
 
         int exited_children = 0;
-        while (exited_children < manager->children_len)
+        while (exited_children < child_count)
         {
             pid_t exited_child = wait(&status);
             printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
@@ -140,6 +139,8 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
                     sprintf(child_filename, "%d.txt", child_worker->id);
                     printf("IM THE EXITED CHILD %d FROM MANAGER %d AND MY FILENAME IS %s\n", exited_child, getpid(), child_filename);
                     manager_file_writer_worker(child_filename, manager_filename);
+                    free(manager_filename);
+                    free(child_filename);
                 }
                 else if ((managers[manager->children_ids[i]] != NULL) && (exited_child == managers[manager->children_ids[i]]->pid))
                 {
@@ -149,95 +150,28 @@ void manager_process(Manager *manager, Manager **managers, Worker **workers)
                     char *manager_parent_filename = calloc(20, sizeof(char));
                     sprintf(manager_parent_filename, "%d.txt", manager->id);
                     manager_file_writer_manager(manager_child_filename, manager_parent_filename);
+                    free(manager_child_filename);
+                    free(manager_parent_filename);
                 }
             }
             exited_children++;
         }
-        exit(EXIT_SUCCESS);
     }
 }
-void root_process(Manager *manager, Manager **managers, Worker **workers)
+
+void manager_process(Manager *manager, Manager **managers, Worker **workers, int total_processes)
+{
+    signal(SIGABRT, sig_SIGABRT_handler_manager);
+    signal(SIGINT, SIG_IGN);
+    manager_logic(manager, managers, workers, total_processes);
+    exit(EXIT_SUCCESS);
+}
+
+void root_process(Manager *root, Manager **managers, Worker **workers, int total_processes)
 {
     signal(SIGABRT, sig_SIGABRT_handler_manager);
     signal(SIGINT, sig_SIGABRT_handler_manager);
-    int status;
-    pid_t pid;
-    for (int i = 0; i < manager->children_len; i++)
-    {
-        pid = fork();
-        if (pid == 0)
-        {
-            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
-            {
-                Manager *child_manager = managers[manager->children_ids[i]];
-                manager_process(child_manager, managers, workers);
-            }
-            else // WORKER CHILD
-            {
-                Worker *child_worker = workers[manager->children_ids[i]];
-                worker_process(child_worker);
-            }
-        }
-        else
-        {
-            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
-            {
-                Manager *child_manager = managers[manager->children_ids[i]];
-                child_manager->pid = pid;
-            }
-            else // WORKER CHILD
-            {
-                Worker *child_worker = workers[manager->children_ids[i]];
-                child_worker->pid = pid;
-            }
-        }
-    }
-    if (pid > 0)
-    {
-        for (size_t i = 0; i < manager->children_len; i++)
-        {
-            if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
-            {
-                Manager *child_manager = managers[manager->children_ids[i]];
-                childs_pids[child_count] = child_manager->pid;
-                child_count++;
-            }
-            else // WORKER CHILD
-            {
-                Worker *child_worker = workers[manager->children_ids[i]];
-                childs_pids[child_count] = child_worker->pid;
-                child_count++;
-            }
-        }
-        int exited_children = 0;
-        while (exited_children < manager->children_len)
-        {
-            pid_t exited_child = wait(&status);
-            printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
-            for (int i = 0; i < manager->children_len; i++)
-            {
-                if ((workers[manager->children_ids[i]] != NULL) && (exited_child == workers[manager->children_ids[i]]->pid))
-                {
-                    Worker *child_worker = workers[manager->children_ids[i]];
-                    char *manager_filename = calloc(20, sizeof(char));
-                    sprintf(manager_filename, "%d.txt", manager->id);
-                    char *child_filename = calloc(20, sizeof(char));
-                    sprintf(child_filename, "%d.txt", child_worker->id);
-                    manager_file_writer_worker(child_filename, manager_filename);
-                }
-                else if ((managers[manager->children_ids[i]] != NULL) && (exited_child == managers[manager->children_ids[i]]->pid))
-                {
-                    Manager *child_manager = managers[manager->children_ids[i]];
-                    char *manager_child_filename = calloc(20, sizeof(char));
-                    sprintf(manager_child_filename, "%d.txt", child_manager->id);
-                    char *manager_parent_filename = calloc(20, sizeof(char));
-                    sprintf(manager_parent_filename, "%d.txt", manager->id);
-                    manager_file_writer_manager(manager_child_filename, manager_parent_filename);
-                }
-            }
-            exited_children++;
-        }
-    }
+    manager_logic(root, managers, workers, total_processes);
 }
 
 Manager *new_manager(int id, char *timeout, char *children_len, char *children)
@@ -264,7 +198,12 @@ void free_manager(Manager *manager)
     free(manager);
 }
 
-void start_processes(Manager *root, Manager **managers, Worker **workers)
+void start_processes(Manager *root, Manager **managers, Worker **workers, int total_processes)
 {
-    root_process(root, managers, workers);
+    root_process(root, managers, workers, total_processes);
 }
+
+// void free_all(Manager **managers, Worker **workers, int total_processes)
+// {
+
+// }
