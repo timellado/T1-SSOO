@@ -33,6 +33,8 @@ void sig_handler_worker(int signum)
 
 void worker_process(Worker *worker, Manager **managers, Worker **workers, int total_processes)
 {
+    signal(SIGABRT, sig_handler_worker);
+    signal(SIGINT, SIG_IGN);
     int status;
     time_t start, end;
     int pid;
