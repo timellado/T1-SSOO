@@ -110,7 +110,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
     if (timeout_pid == 0)
     {
         sleep(manager->timeout);
-        exit(0);
+        exit(EXIT_SUCCESS);
     }
     else
     {
@@ -131,12 +131,14 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
         }
 
         int exited_children = 0;
+        int timeout = 0;
         while (exited_children < child_count)
         {
             pid_t exited_child = wait(&status);
             if (exited_child == timeout_pid)
             {
                 kill(getpid(), SIGABRT);
+                timeout = 1;
             }
             for (int i = 0; i < manager->children_len; i++)
             {
@@ -167,6 +169,11 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                     exited_children++;
                 }
             }
+        }
+        if (!timeout)
+        {
+            kill(timeout_pid, SIGABRT);
+            wait(NULL);
         }
     }
 }
