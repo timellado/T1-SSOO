@@ -106,7 +106,13 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
             }
         }
     }
-    if (pid > 0)
+    pid_t timeout_pid = fork();
+    if (timeout_pid == 0)
+    {
+        sleep(manager->timeout);
+        exit(0);
+    }
+    else
     {
         for (size_t i = 0; i < manager->children_len; i++)
         {
@@ -128,7 +134,10 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
         while (exited_children < child_count)
         {
             pid_t exited_child = wait(&status);
-            // printf("[%d] CHILD %d EXITED\n", getpid(), exited_child);
+            if (exited_child == timeout_pid)
+            {
+                kill(getpid(), SIGABRT);
+            }
             for (int i = 0; i < manager->children_len; i++)
             {
                 if ((workers[manager->children_ids[i]] != NULL) && (exited_child == workers[manager->children_ids[i]]->pid))
@@ -143,6 +152,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                     manager_file_writer_worker(child_filename, manager_filename);
                     free(manager_filename);
                     free(child_filename);
+                    exited_children++;
                 }
                 else if ((managers[manager->children_ids[i]] != NULL) && (exited_child == managers[manager->children_ids[i]]->pid))
                 {
@@ -154,9 +164,9 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                     manager_file_writer_manager(manager_child_filename, manager_parent_filename);
                     free(manager_child_filename);
                     free(manager_parent_filename);
+                    exited_children++;
                 }
             }
-            exited_children++;
         }
     }
 }
