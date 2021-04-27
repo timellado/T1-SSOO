@@ -8,7 +8,6 @@
 #include <signal.h>
 #include <time.h>
 #include <errno.h>
-#include "../file_manager/manager.h"
 
 int global_SIGABRT = 0;
 int child_count = 0;
@@ -31,7 +30,7 @@ void sig_handler_worker(int signum)
     global_SIGABRT = 1;
 }
 
-void worker_process(Worker *worker, Manager **managers, Worker **workers, int total_processes)
+void worker_process(Worker *worker, Manager **managers, Worker **workers, Manager *root, int total_processes, InputFile *input_file)
 {
     signal(SIGABRT, sig_handler_worker);
     signal(SIGINT, SIG_IGN);
@@ -53,6 +52,8 @@ void worker_process(Worker *worker, Manager **managers, Worker **workers, int to
         worker->interrupted = global_SIGABRT;
         line_writer(worker);
     }
+    // printf("[%d] WORKER FREEING ALL\n", worker->id);
+    free_all(managers, workers, root, total_processes, input_file);
     exit(WEXITSTATUS(status));
 }
 
@@ -72,7 +73,7 @@ void free_worker(Worker *worker)
     free(worker);
 }
 
-void manager_logic(Manager *manager, Manager **managers, Worker **workers, int total_processes)
+void manager_logic(Manager *manager, Manager **managers, Worker **workers, Manager *root, int total_processes, InputFile *input_file)
 {
     int status;
     pid_t pid;
@@ -84,14 +85,14 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
             if (managers[manager->children_ids[i]] != NULL) // MANAGER CHILD
             {
                 Manager *child_manager = managers[manager->children_ids[i]];
-                // printf("STARTING MANAGER [%d] WITH ID: %d\n", getpid(), child_manager->id);
-                manager_process(child_manager, managers, workers, total_processes);
+                // printf("[%d] MANAGER WITH PID: %d\n", child_manager->id, getpid());
+                manager_process(child_manager, managers, workers, root, total_processes, input_file);
             }
             else if (workers[manager->children_ids[i]] != NULL) // WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
-                // printf("STARTING WORKER [%d] WITH ID: %d\n", getpid(), child_worker->id);
-                worker_process(child_worker, managers, workers, total_processes);
+                // printf("[%d] WORKER WITH PID: %d\n", child_worker->id, getpid());
+                worker_process(child_worker, managers, workers, root, total_processes, input_file);
             }
         }
         else
@@ -101,7 +102,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                 Manager *child_manager = managers[manager->children_ids[i]];
                 child_manager->pid = pid;
             }
-            else if (workers[manager->children_ids[i]] != NULL)// WORKER CHILD
+            else if (workers[manager->children_ids[i]] != NULL) // WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
                 child_worker->pid = pid;
@@ -112,6 +113,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
     if (timeout_pid == 0)
     {
         sleep(manager->timeout);
+        free_all(managers, workers, root, total_processes, input_file);
         exit(EXIT_SUCCESS);
     }
     else
@@ -124,7 +126,7 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
                 childs_pids[child_count] = child_manager->pid;
                 child_count++;
             }
-            else if (workers[manager->children_ids[i]] != NULL)// WORKER CHILD
+            else if (workers[manager->children_ids[i]] != NULL) // WORKER CHILD
             {
                 Worker *child_worker = workers[manager->children_ids[i]];
                 childs_pids[child_count] = child_worker->pid;
@@ -180,19 +182,21 @@ void manager_logic(Manager *manager, Manager **managers, Worker **workers, int t
     }
 }
 
-void manager_process(Manager *manager, Manager **managers, Worker **workers, int total_processes)
+void manager_process(Manager *manager, Manager **managers, Worker **workers, Manager *root, int total_processes, InputFile *input_file)
 {
     signal(SIGABRT, sig_SIGABRT_handler_manager);
     signal(SIGINT, SIG_IGN);
-    manager_logic(manager, managers, workers, total_processes);
+    manager_logic(manager, managers, workers, root, total_processes, input_file);
+    // printf("[%d] MANAGER FREEING ALL\n", manager->id);
+    free_all(managers, workers, root, total_processes, input_file);
     exit(EXIT_SUCCESS);
 }
 
-void root_process(Manager *root, Manager **managers, Worker **workers, int total_processes)
+void root_process(Manager *root, Manager **managers, Worker **workers, int total_processes, InputFile *input_file)
 {
     signal(SIGABRT, sig_SIGABRT_handler_manager);
     signal(SIGINT, sig_SIGABRT_handler_manager);
-    manager_logic(root, managers, workers, total_processes);
+    manager_logic(root, managers, workers, root, total_processes, input_file);
 }
 
 Manager *new_manager(int id, int timeout, int children_len, int *children)
@@ -218,12 +222,89 @@ void free_manager(Manager *manager)
     free(manager);
 }
 
-void start_processes(Manager *root, Manager **managers, Worker **workers, int total_processes)
+void start_processes(Manager *root, Manager **managers, Worker **workers, int total_processes, InputFile *input_file)
 {
-    root_process(root, managers, workers, total_processes);
+    root_process(root, managers, workers, total_processes, input_file);
 }
 
-// void free_all(Manager **managers, Worker **workers, int total_processes)
-// {
+void free_all(Manager **managers, Worker **workers, Manager *root, int total_processes, InputFile *input_file)
+{
+    for (int i = 0; i < total_processes; i++)
+    {
+        if (managers[i] != NULL) // MANAGER
+        {
+            // printf("FREEING MANAGER %d\n", managers[i]->id);
+            free_manager(managers[i]);
+        }
+        else if (workers[i] != NULL) // WORKER
+        {
+            // printf("FREEING WORKER %d\n", workers[i]->id);
+            free_worker(workers[i]);
+        }
+    }
+    free(workers);
+    free(managers);
+    free_manager(root);
+    input_file_destroy(input_file);
+}
 
-// }
+// Encuentra o crea el archvo y escribe una lina de output.
+// Para los argumentos se debe pasar un char con todos los argumentos separados por una ","
+void line_writer(Worker *worker)
+{
+  char *filename = calloc(20, sizeof(char));
+  sprintf(filename, "%d.txt", worker->id);
+  // printf("%s\n", filename);
+  FILE *output_file = fopen(filename, "w");
+  // TODO: Definir cuando se ejecute el proceso
+
+  if (worker->args_len == 0)
+  {
+    fprintf(output_file, "%s,%d,%d,%d\n", worker->executable, worker->time, worker->return_code, worker->interrupted);
+  }
+  else
+  {
+    char str[200];
+    strcpy(str, "");
+    for (int i = 0; i < worker->args_len; i++)
+    {
+      strcat(str, worker->args[i + 1]);
+      strcat(str, ",");
+    }
+    if(strstr(str, "\n") != NULL) {
+      str[strlen(str) - 2] = '\0'; //quita el \n y la última coma
+    }
+    else{
+      str[strlen(str) - 1] = '\0';
+    }
+    
+    fprintf(output_file, "%s,%s,%d,%d,%d\n", worker->executable, str, worker->time, worker->return_code, worker->interrupted);
+  }
+
+  fclose(output_file);
+  free(filename);
+}
+
+void manager_file_writer_manager(char* manager_child_filename, char* manager_parent_filename)
+{
+  FILE *child_file = fopen(manager_child_filename, "r");
+  FILE *manager_output_file = fopen(manager_parent_filename, "a");
+  char buffer[BUFFER_SIZE];
+  while (fgets(buffer, BUFFER_SIZE, child_file))
+  {
+    fprintf(manager_output_file, "%s", buffer);
+  }
+  fclose(manager_output_file);
+  fclose(child_file);
+}
+
+void manager_file_writer_worker(char* worker_filename, char* manager_filename)
+{
+  FILE *child_file = fopen(worker_filename, "r");
+  FILE *manager_output_file = fopen(manager_filename, "a");
+  char buffer[BUFFER_SIZE];
+  fgets(buffer, BUFFER_SIZE, child_file);
+  fprintf(manager_output_file, "%s", buffer);
+  fclose(manager_output_file);
+  fclose(child_file);
+}

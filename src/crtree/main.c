@@ -4,7 +4,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "../file_manager/manager.h"
 #include "processes.h"
 
 int main(int argc, char **argv)
@@ -31,7 +30,7 @@ int main(int argc, char **argv)
     char *identificator = input_file->lines[i][0];
     if (!strcmp(identificator, "W"))
     {
-      printf("Worker\n");
+      // printf("Worker\n");
 
       //armar los args
       int args_len = atoi(input_file->lines[i][2]);
@@ -48,7 +47,7 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(identificator, "M"))
     {
-      printf("Manager\n");
+      // printf("Manager\n");
       int children_len = atoi(input_file->lines[i][2]);
       int children[children_len];
       int child_count = 0;
@@ -68,7 +67,7 @@ int main(int argc, char **argv)
     }
     else
     {
-      printf("Root Manager\n");
+      // printf("Root Manager\n");
       int children_len = atoi(input_file->lines[i][2]);
       int children[children_len];
       int child_count = 0;
@@ -88,7 +87,7 @@ int main(int argc, char **argv)
     }
   };
 
-  start_processes(root, managers, workers, input_file->len);
+  start_processes(root, managers, workers, input_file->len, input_file);
 
   //free memory
 
